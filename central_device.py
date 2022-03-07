@@ -1,4 +1,5 @@
 from ctypes import sizeof
+from distutils import errors
 from logging.handlers import BaseRotatingHandler
 from signal import signal
 from bluepy import btle
@@ -32,12 +33,18 @@ mac_address_1 = "80:30:DC:D9:1F:A9"
 mac_address_2 = "30:E2:83:AE:68:71"
 service = "0000dfb0-0000-1000-8000-00805f9b34fb"
 beetle_characteristic = "0000dfb1-0000-1000-8000-00805f9b34fb"
-# this global variable stores incoming data
+all_beetles_connected = 0
+num_of_beetles = 2
+
+# this global variable (list of lists) stores incoming data
 # 1 list for each beetle
 buffer = [[],[]]
 
 
 def add_two_binaries(val1, val2):
+    """
+    
+    """
     temp_binary = 0b0000_0000_0000_0000
     temp_binary = temp_binary|val1
     temp_binary = temp_binary << 8
@@ -67,6 +74,7 @@ class Packet:
         self.payload_6 = payload_6 
 
 
+
 class Beetle_Delegate(btle.DefaultDelegate):
     """
     Enables the script to receive Bluetooth messages asynchronously,
@@ -78,7 +86,7 @@ class Beetle_Delegate(btle.DefaultDelegate):
 
 
     def handleNotification(self, cHandle, data):
-        print("received, ", data)
+        print(self.beetle_id, " received, ", data)
 
         # each packet comes in the format
         # [beetle_id][packet_id][sequence_id] //0,1,2
@@ -99,14 +107,14 @@ class Beetle_Delegate(btle.DefaultDelegate):
         )   
 
         buffer[self.beetle_id].append(temp_packet)
-        print(buffer[self.beetle_id][0].beetle_id)
-        print(buffer[self.beetle_id][0].packet_id)
-        print(buffer[self.beetle_id][0].payload_1)
-        print(buffer[self.beetle_id][0].payload_2)
-        print(buffer[self.beetle_id][0].payload_3)
-        print(buffer[self.beetle_id][0].payload_4)
-        print(buffer[self.beetle_id][0].payload_5)
-        print(buffer[self.beetle_id][0].payload_6)
+        # print(buffer[self.beetle_id][0].beetle_id)
+        # print(buffer[self.beetle_id][0].packet_id)
+        # print(buffer[self.beetle_id][0].payload_1)
+        # print(buffer[self.beetle_id][0].payload_2)
+        # print(buffer[self.beetle_id][0].payload_3)
+        # print(buffer[self.beetle_id][0].payload_4)
+        # print(buffer[self.beetle_id][0].payload_5)
+        # print(buffer[self.beetle_id][0].payload_6)
 
 
 
@@ -171,23 +179,31 @@ class Beetle_Connection:
             - Beetle -SY-ACK-> Laptop
             - Laptop -ACK-> Laptop
         Uses the values in buffer as a flag
+        Adds 1 to the global variable all_beetles_connected
         """
         self.write("A")
         self._periph.waitForNotifications(2.0)
-        if buffer[self.beetle_id][0].packet_id == (2,):
-            print(buffer)
-            self.write("B")
-            print("handshake completed!")
-        else:
-            print("handshake incomplete!")
-            # Connection may have been established, but the received
-            # SYN=ACK packet might have not been accepted
-            try:
-                self._periph.disconnect()
-            except Exception as e: 
-                print(e)
+        try:
+            if buffer[self.beetle_id][0].packet_id == (2,):
+                print(buffer)
+                self.write("B")
+                print("handshake completed!") 
+
+                global all_beetles_connected
+                all_beetles_connected = all_beetles_connected + 1
+            else: 
+                print("handshake incomplete!")
+                # Connection may have been established, but the received
+                # SYN=ACK packet might have not been accepted
+                try:
+                    self._periph.disconnect()
+                except Exception as e: 
+                    print(e)
             
-            self._periph = None
+                self._periph = None
+        except Exception as e:
+            print("handshake error", e)
+
         
         buffer[self.beetle_id].clear()
 
@@ -251,9 +267,25 @@ class Beetle_Connection:
 
 
     def sliding_window(self):
+        """
+        This function conducts a sliding window protocol
+            - upon sending a "C" packet, the Beetle will send over 50 
+              packets at once
+            - (TO BE IMPLEMENTED) if there are any issues with the packets
+              e.g. lost packets, an "E" packet will be sent, followed by
+              a packet containing the problematic packet's sequence number
+              [However, a consideration: is the overhead and resulting 
+              decrease in throughput worth it?]
+            - achieves a rate of around 25 Hz; this value could be less
+              if 
+                a. Beetles are further away from the laptop
+                b. 3 Beetles are connected at once, 
+                c. Beetles take time to pick up data from the hardware 
+                   sensors
+        """
         try:
             for i in range(120):
-                print("iteration, ", i)
+                # print("iteration, ", i)
                 if self._periph.waitForNotifications(0.01):
                     continue
         except KeyboardInterrupt:
@@ -279,8 +311,6 @@ class Beetle_Connection:
         print(buffer)
 
     
-
-
     def main_routine(self):
         while self._periph is None:
             try:
@@ -290,20 +320,24 @@ class Beetle_Connection:
                 print("error, ", e)
                 time.sleep(2.0)
 
-        # To kick off the sending of data
-        # self.write("C")
+        while all_beetles_connected != num_of_beetles:
+            pass
 
-        # start = time.time()
-        # print("start", start)
-        # self.sliding_window()
-        # end = time.time()
-        # print("end", end)
-        # print("time elapsed in seconds", (end - start))
-        while True:
-            self.write("A")
-            if self._periph.waitForNotifications(1):
-                print("waiting, ...", self.beetle_id)
-                continue
+        # To kick off the sending of data
+        self.write("C")
+
+        # Tests packets received in a second
+        start = time.time()
+        self.sliding_window()
+        end = time.time()
+        print("time elapsed in seconds", (end - start))
+
+        self.disconnect()
+
+        # while True:
+        #     self.sliding_window()
+        #     if no errors
+        #         self.write("C")
 
     
 
