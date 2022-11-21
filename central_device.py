@@ -42,9 +42,6 @@ buffer = [[],[]]
 
 
 def add_two_binaries(val1, val2):
-    """
-    
-    """
     temp_binary = 0b0000_0000_0000_0000
     temp_binary = temp_binary|val1
     temp_binary = temp_binary << 8
@@ -107,14 +104,6 @@ class Beetle_Delegate(btle.DefaultDelegate):
         )   
 
         buffer[self.beetle_id].append(temp_packet)
-        # print(buffer[self.beetle_id][0].beetle_id)
-        # print(buffer[self.beetle_id][0].packet_id)
-        # print(buffer[self.beetle_id][0].payload_1)
-        # print(buffer[self.beetle_id][0].payload_2)
-        # print(buffer[self.beetle_id][0].payload_3)
-        # print(buffer[self.beetle_id][0].payload_4)
-        # print(buffer[self.beetle_id][0].payload_5)
-        # print(buffer[self.beetle_id][0].payload_6)
 
 
 
@@ -240,7 +229,6 @@ class Beetle_Connection:
                         print("packet count, ", packet_count)
                         print(buffer)
                         print("success!")
-                    # self.write("C")
                     continue
             print("packets received = ", packet_count)
             print(buffer)
@@ -285,7 +273,6 @@ class Beetle_Connection:
         """
         try:
             for i in range(120):
-                # print("iteration, ", i)
                 if self._periph.waitForNotifications(0.01):
                     continue
         except KeyboardInterrupt:
@@ -333,11 +320,6 @@ class Beetle_Connection:
         print("time elapsed in seconds", (end - start))
 
         self.disconnect()
-
-        # while True:
-        #     self.sliding_window()
-        #     if no errors
-        #         self.write("C")
 
     
 
